@@ -1,0 +1,104 @@
+{% comment %}
+  Renders collection and search filter list item
+
+  Accepts:
+  - filter: {Object} Main filter object
+  - filter_value: {Object} This filter value object
+  - filter_label: {String} This filter name
+  - swatches_enabled: {Boolean} If this filter uses theme swatch method
+  - triggers: {Object} Theme swatch method triggers
+  - show_count: {Boolean} Show product count
+  - index: {Number}
+{% endcomment %}
+
+<li class="collection-sidebar__item{% if filter_value.count == 0 and filter_value.active == false %} collection-sidebar__item--disabled{% endif %}{% if filter.presentation == 'swatch' %} collection-sidebar__item--meta-swatch{% if filter_value.display.type == 'image' %} collection-sidebar__item--meta-swatch-image{% endif %}{% endif %}">
+  <input
+    type="checkbox"
+    name="{{ filter_value.param_name }}"
+    value="{{ filter_value.value }}"
+    class="collection-sidebar__filter__input"
+    id="Filter-{{ filter.label }}-{{ index }}"
+    {% if filter_value.active -%}
+      checked
+    {%- endif %}
+    {% if filter_value.count == 0 and filter_value.active == false %}
+      disabled
+    {% endif %}
+  >
+  <label for="Filter-{{ filter.label }}-{{ index }}" class="collection-sidebar__link js-filter-label">
+    {% if filter.presentation == 'swatch' %}
+      {% liquid
+        assign v = filter_value.label | strip | downcase
+        assign swatch_id = v | handle | prepend: 'meta-swatch-'
+        assign value = filter_value.display.value
+        assign image_url = value | image_url: width: 36
+        assign size_limit = value.size | at_most: 4
+        assign angle_increment = 360 | divided_by: size_limit
+        assign angle = 0
+        assign graphic_brightness = filter_value.display.value[0] | color_brightness
+        if graphic_brightness > 125 or graphic_brightness == blank
+          assign checked_color = '#000000'
+        else
+          assign checked_color = '#ffffff'
+        endif
+      %}
+
+      {%- case filter_value.display.type -%}
+        {%- when 'colors' -%}
+          {%- capture default_color -%}
+            conic-gradient(
+            {%- for color in value limit: size_limit -%}
+            {{ color }} {{ angle }}deg{%- assign angle = angle | plus: angle_increment %} {{ angle }}deg{%- unless forloop.last %}, {%- endunless -%}
+            {%- endfor -%}
+            )
+          {%- endcapture -%}
+
+        {%- when 'image' -%}
+          {% liquid
+            assign checked_color = '#ffffff'
+          %}
+          {%- capture default_color -%}
+            url({{ image_url }})
+          {%- endcapture -%}
+      {%- endcase -%}
+
+      <variant-swatch
+        swatch-id="{{ swatch_id }}"
+        class="collection-sidebar__link__box collection-sidebar__link__box--swatch {% if graphic_brightness == blank %}is-blank{% endif %}"
+        style="--background-graphic: {{ default_color }}; --tick-color: {{ checked_color }}"
+      >
+        {% render 'icons-theme', icon: 'check' %}
+      </variant-swatch>
+
+    {%- elsif triggers contains filter_label and swatches_enabled -%}
+      {%- liquid
+        assign v = filter_value.label | strip | downcase
+        assign swatch_id = v | handle
+        assign default_color = swatch_id | replace: '-', ''
+        assign graphic_brightness = default_color | color_brightness
+        if graphic_brightness > 125 or graphic_brightness == blank
+          assign checked_color = '#000000'
+        else
+          assign checked_color = '#ffffff'
+        endif
+      -%}
+
+      <variant-swatch
+        swatch-id="{{ swatch_id }}"
+        class="collection-sidebar__link__box collection-sidebar__link__box--swatch {% if graphic_brightness == blank %}is-blank{% endif %}"
+        style="--background-graphic: {{ default_color }}; --tick-color: {{ checked_color }}"
+      >
+        {% render 'icons-theme', icon: 'check' %}
+      </variant-swatch>
+
+    {%- else -%}
+      <span class="collection-sidebar__link__box">
+        {% render 'icons-theme', icon: 'check' %}
+      </span>
+    {%- endif -%}
+    {{ filter_value.label | escape }}
+    {% if show_count %}
+      <span class="collection-sidebar__link__count">{{ filter_value.count }}</span>
+    {% endif %}
+  </label>
+</li>

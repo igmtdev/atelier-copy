@@ -1,0 +1,56 @@
+{% comment %}
+  Renders variant swatches
+
+  Accepts:
+  - option: {Object} Product_option Liquid object
+  - section_id: {String} Section id
+  - form_id: {String} Unique form id (optional)
+  - popup: {String} Popup HTML (optional)
+
+  Usage:
+  {% render 'variant-swatches', form_id: product_form_id, option: option, section_id: section.id %}
+{% endcomment %}
+
+<variant-swatches data-form-id="{{ form_id }}" style="--swatch-size: {{ settings.design_variant_swatch_size }}px">
+  <fieldset class="product-form__swatch">
+    <div class="product-form__swatch__title">
+      <legend class="f-family--{{ settings.type_product_form_headings_style }} f-caps--{{ settings.type_product_form_headings_capitalize }} f-space--{{ settings.type_product_form_headings_letterspace }}">
+        {{ option.name }}:
+        <span class="product-form__swatch__sub-title js-option-title">{{ option.selected_value }}</span>
+      </legend>
+      {%- if popup -%}
+        {{ popup }}
+      {%- endif -%}
+    </div>
+    {%- for value in option.values -%}
+      {%- liquid
+        assign swatch_id = value | strip | downcase | handle
+        assign default_color = swatch_id | replace: '-', ''
+      -%}
+
+      <span class="product-form__swatch__item product-form__swatch__item--color{% if settings.use_emphasized_borders %} product-form__swatch__item--emphasize{% endif %} product-form__swatch__item--{% if settings.use_square_swatch %}square{% else %}circle{% endif %}">
+        <input
+          type="radio"
+          id="{{ section_id }}-{{ option.position }}-{{ forloop.index0 }}"
+          name="{{ option.name }}"
+          value="{{ value | escape }}"
+          form="{{ form_id }}"
+          class="product-form__swatch__input u-hidden-visually"
+          {% if option.selected_value == value %}
+            checked
+          {% endif %}
+        >
+        <label for="{{ section_id }}-{{ option.position }}-{{ forloop.index0 }}" class="product-form__swatch__label">
+          <variant-swatch
+            swatch-id="{{ swatch_id }}"
+            class="product-form__swatch__label__graphic"
+            style="--background-graphic: {{ default_color }}"
+          >
+            <span class="visually-hidden">{{ value | replace: '"', '' }}</span>
+            {{- value -}}
+          </variant-swatch>
+        </label>
+      </span>
+    {%- endfor -%}
+  </fieldset>
+</variant-swatches>

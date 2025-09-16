@@ -1,0 +1,635 @@
+{% comment %}theme-check-disable RemoteAsset{% endcomment %}
+{% comment %}
+  Render product media gallery
+
+  Accepts:
+  - product: {Object} Product object
+  - section_id: {String} Section id
+  - image_ratio: {String} Image ratio string. Values are "1:1", "3:4", "4:3", "16:9", "2:3", "natural"
+  - current_media_id: {String} Current image id
+  - show_arrows: {Boolean} Show navigation arrows
+  - thumbnails_aside: {Boolean} Show thumbnails vertically on the side of slider
+  - thumbnails_ratio: {String} Thumbnails image ratio
+  - container: {String} Container width. Values are "large", "small" and "full"
+  - sizes: {String} Media sizes string
+{% endcomment %}
+
+{%- liquid
+  if container == 'large' or container == 'full'
+    assign thumbnails_size = 70
+  else
+    assign thumbnails_size = 50
+  endif
+
+  assign image_ratio_string = image_ratio
+  if image_ratio != 'natural'
+    assign values = image_ratio | split: ':'
+    assign i_w = values[0] | plus: 0.0
+    assign i_h = values[1] | plus: 0.0
+    assign image_ratio = i_h | divided_by: i_w
+
+    assign loading_padding = image_ratio | times: 100
+  elsif product.media[0].aspect_ratio
+    assign loading_padding = 100 | divided_by: product.media[0].aspect_ratio
+  else
+    assign loading_padding = 100
+  endif
+
+  if thumbnails_ratio != 'natural'
+    assign values = thumbnails_ratio | split: ':'
+    assign w = values[0] | plus: 0.0
+    assign h = values[1] | plus: 0.0
+    assign thumbnail_ratio = h | divided_by: w
+
+    assign thumbnails_size = thumbnails_size | divided_by: thumbnail_ratio | round
+
+    assign thumbnails_size_halved = thumbnails_size | divided_by: 2
+    assign thumbnail_size_softener_ratio = -1 | plus: thumbnail_ratio
+    assign thumbnail_size_softener = thumbnails_size_halved | times: thumbnail_size_softener_ratio | round
+
+    assign preffered_thumb_width = thumbnails_size | plus: thumbnail_size_softener
+    assign preffered_thumb_height = preffered_thumb_width | times: thumbnail_ratio | round
+  else
+    assign preffered_thumb_width = thumbnails_size
+    assign preffered_thumb_height = thumbnails_size
+  endif
+
+  assign preffered_thumb_width_deviation = preffered_thumb_width | divided_by: 10
+  assign thumbs_column_width = preffered_thumb_width | plus: preffered_thumb_width_deviation
+
+  assign media_srcset_widths = '180, 360, 540, 720, 900, 1080, 1296, 1512, 1728, 2048'
+  assign media_srcset_widths_array = media_srcset_widths | split: ', '
+
+  if sizes == blank
+    if container == 'small'
+      assign sizes = '(min-width: 981px) 480px, (min-width: 740px) 668px, calc(100vw - 72px)'
+    elsif container == 'large'
+      assign sizes = '(min-width: 1400px) 732px, (min-width: 981px) 50vw, calc(100vw - 72px)'
+    else
+      assign sizes = '(min-width: 2200px) 1212px, (min-width: 981px) 60vw, calc(100vw - 72px)'
+    endif
+  endif
+
+  if current_media_id
+    for media in product.media
+      if media.id == current_media_id
+        assign current_slide = forloop.index0
+        break
+      endif
+    endfor
+  endif
+-%}
+
+<style>
+  .media-gallery__nav--loading {
+    position: relative;
+    overflow: hidden;
+    visibility: hidden;
+  }
+  .media-gallery__slider--loading {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+</style>
+<noscript>
+  <style>
+    .media-gallery--loading {
+      visibility: visible;
+    }
+    .media-gallery--loading::before {
+      display: none;
+    }
+  </style>
+</noscript>
+
+{%- capture media -%}
+  {%- for media in product.media -%}
+    <div class="media-gallery__wrapper" notab="notab">
+      {% case media.media_type %}
+        {% when 'image' %}
+          {%- liquid
+            assign image_slide_index = image_slide_index | plus: 1
+            assign image_srcset = ''
+
+            for w in media_srcset_widths_array
+              assign width = w | plus: 0
+
+              if media.width >= width
+                assign height = width | divided_by: media.aspect_ratio | round
+
+                assign image_url = media | image_url: width: width
+                assign image_srcset = image_srcset | append: image_url | append: ' ' | append: width | append: 'w ' | append: height | append: 'h, '
+              endif
+            endfor
+
+            assign master_image = media | image_url
+            assign master_height = media.height
+            assign image_srcset = image_srcset | append: master_image | append: ' ' | append: media.width | append: 'w ' | append: master_height | append: 'h'
+
+            assign default_width = 600
+            assign default_height = 600 | divided_by: media.aspect_ratio | round
+
+            unless media.width >= default_width
+              assign default_width = media.width
+              assign default_height = default_width | divided_by: media.aspect_ratio | round
+            endunless
+
+            assign image_default_url = media | image_url: width: default_width
+
+            assign is_current_slide = false
+            if current_media_id
+              if media.id == current_media_id
+                assign is_current_slide = true
+              endif
+            else
+              if forloop.first
+                assign is_current_slide = true
+              endif
+            endif
+
+            assign current_slide_loading = 'lazy'
+            if section.index == 1 and is_current_slide
+              assign current_slide_loading = 'eager'
+            endif
+          -%}
+
+          <div
+            class="
+              media-gallery__item
+              media-gallery__item--image
+            "
+            data-slide-id="{{ forloop.index0 }}"
+            data-image-slide-index="{{ image_slide_index | minus: 1 }}"
+            data-media-id="{{ media.id }}"
+          >
+            <div
+              class="o-ratio o-ratio--{{ image_ratio_string }}"
+              {% if media == null and image_ratio == 'natural' %}
+                style="padding-bottom: 100%;"
+              {% elsif media != null and image_ratio == 'natural' %}
+                style="padding-bottom:{{ 1 | divided_by: media.aspect_ratio | times: 100 }}%;"
+              {% endif %}
+            >
+              <div class="o-ratio__content">
+                {%- if show_zoom_links -%}
+                  <a
+                    class="media-gallery__link"
+                    href="{{ media | image_url }}"
+                    data-pswp-height="{{ media.height }}"
+                    data-pswp-width="{{ media.width }}"
+                    data-slide-id="{{ forloop.index0 }}"
+                  >
+                {%- endif -%}
+                {%- liquid
+                  assign skeleton_alt = 'general.media.loading_image' | t: alt: forloop.index
+                -%}
+                {% render 'image-skeleton', alt: skeleton_alt, width: default_width, height: default_height, contain: true %}
+                <img
+                  class="media-gallery__image"
+                  src="{{ image_default_url }}"
+                  srcset="{{ image_srcset }}"
+                  data-media-id="{{ media.id }}"
+                  width="{{ default_width }}"
+                  height="{{ default_height }}"
+                  alt="{{ media.alt | escape }}"
+                  loading="{{ current_slide_loading }}"
+                  sizes="{{ sizes }}"
+                >
+                {%- if show_zoom_links -%}</a>{%- endif -%}
+              </div>
+            </div>
+          </div>
+
+          {%- if is_current_slide -%}
+            {%- capture preview_image -%}
+              <div
+                class="
+                  media-gallery__item
+                  media-gallery__item--image
+                "
+              >
+                <div
+                  class="o-ratio o-ratio--{{ image_ratio_string }}"
+                  {% if media == null and image_ratio == 'natural' %}
+                    style="padding-bottom: 100%;"
+                  {% elsif media != null and image_ratio == 'natural' %}
+                    style="padding-bottom:{{ 1 | divided_by: media.aspect_ratio | times: 100 }}%;"
+                  {% endif %}
+                >
+                  <div class="o-ratio__content">
+                    {%- liquid
+                      assign skeleton_alt = 'general.media.loading_image' | t: alt: forloop.index
+                    -%}
+                    {% render 'image-skeleton', alt: skeleton_alt, width: default_width, height: default_height, contain: true %}
+                    <img
+                      class="media-gallery__image"
+                      src="{{ image_default_url }}"
+                      srcset="{{ image_srcset }}"
+                      width="{{ default_width }}"
+                      height="{{ default_height }}"
+                      alt="{{ media.alt | escape }}"
+                      loading="{{ current_slide_loading }}"
+                      sizes="{{ sizes }}"
+                    >
+                  </div>
+                </div>
+              </div>
+            {%- endcapture -%}
+          {%- endif -%}
+
+        {% when 'video' %}
+          {%- liquid
+            assign video_player_id = section.id | append: '--' | append: media.id
+            assign additional_classes = "media-gallery__item media-gallery__item--video"
+            assign additional_attributes = 'data-slide-id="' | append: forloop.index0 | append: '"'
+            assign aspect_ratio = media.preview_image.width | append: ' / ' | append: media.preview_image.height
+          -%}
+          {% render 'video-player',
+            id: video_player_id,
+            additional_classes: additional_classes,
+            additional_attributes: additional_attributes,
+            video_type: 'html5',
+            video: media,
+            poster_image: media.preview_image,
+            poster_image_loading: lazy,
+            poster_image_sizes: sizes,
+            aspect_ratio: aspect_ratio
+          %}
+
+        {% when 'external_video' %}
+          {%- liquid
+            assign video_player_id = section.id | append: '--' | append: media.id
+            assign additional_classes = "media-gallery__item media-gallery__item--video media-gallery__item--external-video"
+            assign additional_attributes = 'data-slide-id="' | append: forloop.index0 | append: '"'
+            assign aspect_ratio = media.preview_image.width | append: ' / ' | append: media.preview_image.height
+          -%}
+          {% render 'video-player',
+            id: video_player_id,
+            additional_classes: additional_classes,
+            additional_attributes: additional_attributes,
+            video_type: media.host,
+            external_video_id: media.external_id,
+            poster_image: media.preview_image,
+            poster_image_loading: lazy,
+            poster_image_sizes: sizes,
+            aspect_ratio: aspect_ratio
+          %}
+
+        {% when 'model' %}
+          <script src="{{ 'deferred-media.js' | asset_url }}" type="module"></script>
+          <script src="{{ 'product-model.js' | asset_url }}" type="module"></script>
+          <product-model
+            class="
+              media-gallery__item
+              media-gallery__item--model
+              deferred-media
+            "
+            data-slide-id="{{ forloop.index0 }}"
+            data-media-id="{{ media.id }}"
+            {% comment %} style="padding-top: 100%" {% endcomment %}
+          >
+            <media-poster>
+              {{ media.preview_image | image_url: width: 1946 | image_tag:
+                loading: lazy,
+                sizes: sizes,
+                widths: '246, 493, 600, 713, 823, 990, 1100, 1206, 1346, 1426, 1646, 1946'
+              }}
+            </media-poster>
+            <template>
+              {{ media | media_tag: image_size: "2048x", toggleable: true }}
+            </template>
+          </product-model>
+        {% else %}
+          <div
+            class="media-gallery__item"
+            data-slide-id="{{ forloop.index0 }}"
+            data-media-id="{{ media.id }}"
+            style="padding-top: 100%"
+          >
+            {{ media | media_tag }}
+          </div>
+      {% endcase %}
+    </div>
+  {%- endfor -%}
+{%- endcapture -%}
+
+{% assign first_model = product.media | where: 'media_type', 'model' | first %}
+{%- if first_model -%}
+  {%- capture first_model_html -%}
+  <button
+    aria-label="{{ 'products.product.view_in_space_label' | t }}"
+    class="
+      media-gallery__view-in-space
+      js-product-view-in-space-btn
+    "
+    data-shopify-xr
+    data-shopify-model3d-id="{{ first_model.id }}"
+    data-shopify-title="{{ product.title }}"
+    data-shopify-xr-hidden
+  >
+    {%- render 'icons-theme', icon: '3d-model', additional_classes: 'icon--3d-badge' -%}
+    <span class="media-gallery__view-in-space-text">{{ 'products.product.view_in_space' | t }}</span>
+  </button>
+  {%- endcapture -%}
+{%- endif -%}
+
+{% if section.index > 2 %}
+  <link
+    rel="stylesheet"
+    href="{{ 'component-media-gallery.css' | asset_url }}"
+    media="print"
+    onload="this.media='all'"
+  >
+  <noscript>
+    {{ 'component-media-gallery.css' | asset_url | stylesheet_tag }}
+  </noscript>
+{% else %}
+  {{ 'component-media-gallery.css' | asset_url | stylesheet_tag }}
+{% endif %}
+{%- if show_zoom_links -%}
+  <link
+    rel="stylesheet"
+    href="{{ 'plugin-photoswipe.css' | asset_url }}"
+    media="print"
+    onload="this.media='all'"
+  >
+{%- endif -%}
+
+<media-gallery
+  class="
+    media-gallery
+    media-gallery--loading
+    {% if container %}media-gallery--{{ container }}{% endif %}
+    {% if product.media.size > 1 and thumbnails_aside %}media-gallery--thumbnails-aside{% endif %}
+    {% if media_rounded_corners %}media-gallery--rounded{% endif %}
+  "
+  data-fade="true"
+  data-product-media-wrapper
+  data-product-media-group
+  data-zoom="{{ section.settings.enable_zoom }}"
+  data-enable-video-looping="{{ section.settings.enable_video_looping }}"
+  data-thumbnails-size="{{ preffered_thumb_width }}:{{ preffered_thumb_height }}"
+  style="--thumb-column-width: {{ thumbs_column_width }}px"
+>
+  {%- if product.media.size == 0 -%}
+    <img
+      class="media-gallery__image"
+      src="{{ 'placeholder.png' | asset_img_url: '600x' }}"
+      srcset="
+        {{ 'placeholder.png' | asset_img_url: '180x' }} 180w 180h,
+        {{ 'placeholder.png' | asset_img_url: '360x' }} 360w 360h,
+        {{ 'placeholder.png' | asset_img_url: '540x' }} 540w 540h,
+        {{ 'placeholder.png' | asset_img_url: '720x' }} 720w 720h,
+        {{ 'placeholder.png' | asset_img_url: '900x' }} 900w 900h,
+        {{ 'placeholder.png' | asset_img_url: '1080x' }} 1080w 1080h,
+        {{ 'placeholder.png' | asset_img_url: '1296x' }} 1296w 1296h,
+        {{ 'placeholder.png' | asset_img_url: '1512x' }} 1512w 1512h,
+        {{ 'placeholder.png' | asset_img_url: '1728x' }} 1728w 1728h,
+        {{ 'placeholder.png' | asset_img_url: '2048x' }} 2048w 2048h
+      "
+      width="600"
+      height="600"
+      alt="placeholder image"
+      loading="lazy"
+      sizes="{{ sizes }}"
+    >
+  {%- elsif product.media.size == 1 -%}
+    {{- media -}}
+    {{- first_model_html -}}
+  {%- else -%}
+    {% if section.index > 2 %}
+      <link
+        rel="stylesheet"
+        href="{{ 'component-media-carousel.css' | asset_url }}"
+        media="print"
+        onload="this.media='all'"
+      >
+      <noscript>
+        {{ 'component-media-carousel.css' | asset_url | stylesheet_tag }}
+      </noscript>
+    {% else %}
+      {{ 'component-media-carousel.css' | asset_url | stylesheet_tag }}
+    {% endif %}
+    <media-carousel
+      id="{{ section.id }}-media-carousel"
+      class="media-gallery__slider"
+      data-auto-height="true"
+      data-virtual="true"
+      data-fade="true"
+      {% if current_slide %}
+        data-initial-slide="{{ current_slide }}"
+      {% endif %}
+      {% if show_arrows %}
+        data-navigation="true"
+      {% endif %}
+    >
+      {%- if preview_image -%}
+        <media-carousel-preview-image>
+          {{ preview_image }}
+        </media-carousel-preview-image>
+      {%- endif -%}
+      <media-carousel-slider class="swiper">
+        <media-carousel-wrapper class="swiper-wrapper"></media-carousel-wrapper>
+      </media-carousel-slider>
+
+      {%- if show_arrows -%}
+        <media-carousel-navigation class="media-gallery__navigation media-carousel__navigation">
+          <button
+            class="
+              media-gallery__arrow
+              media-gallery__arrow--prev
+              js-carousel-prev
+            "
+          >
+            {% render 'icons-theme', icon: 'chevron', additional_classes: 'icon--left' %}
+          </button>
+          <button
+            class="
+              media-gallery__arrow
+              media-gallery__arrow--next
+              js-carousel-next
+            "
+          >
+            {% render 'icons-theme', icon: 'chevron' %}
+          </button>
+        </media-carousel-navigation>
+      {%- endif -%}
+
+      <div class="js-slides u-hidden-visually">
+        {{- media -}}
+      </div>
+    </media-carousel>
+
+    {{- first_model_html -}}
+
+    <media-gallery-navigation
+      class="
+        media-gallery__nav
+        media-gallery__nav--loading
+      "
+    >
+      <button
+        hidden
+        type="button"
+        class="
+          media-gallery__nav-item
+          media-gallery__nav-item--prev
+          js-media-gallery-nav-prev
+        "
+        aria-label="{{ 'layout.drawers.previous_slide' | t }}"
+      >
+        {% render 'icons-theme', icon: 'chevron', additional_classes: 'icon--left' %}
+      </button>
+      <div
+        class="
+          media-gallery__thumbs
+          js-media-gallery-nav-thumbs
+        "
+      >
+        {%- liquid
+          if thumbnails_ratio != 'natural'
+            assign thumb_ratio_width = thumbnails_ratio | split: ':' | first
+            assign thumb_ratio_height = thumbnails_ratio | split: ':' | last
+          else
+            assign thumb_ratio_width = 1
+            assign thumb_ratio_height = 1
+          endif
+        -%}
+        <ul
+          class="
+            thumbnail-list
+            thumbnail-list--thumb-ratio-{{ thumbnails_ratio }}
+            js-media-gallery-thumb-list
+          "
+          style="
+            --thumbnail-ratio-width: {{ thumb_ratio_width }};
+            --thumbnail-ratio-height: {{ thumb_ratio_height }};
+          "
+        >
+          {%- liquid
+            if current_slide
+              assign lower_loading_index = current_slide | minus: 3
+              assign upper_loading_index = current_slide | plus: 3
+            endif
+          -%}
+          {%- for media in product.media -%}
+            {%- liquid
+              if thumbnails_ratio == 'natural'
+                assign thumbnail_ratio = 1 | divided_by: media.preview_image.aspect_ratio
+              endif
+
+              assign thumb_srcset = ''
+              for i in (1..3)
+                assign thumbnail_width = thumbnails_size | times: i
+                assign thumbnail_height = thumbnail_width | times: thumbnail_ratio | round
+
+                if i > 1 and thumbnail_width > media.preview_image.width or thumbnail_height > media.preview_image.height
+                  break
+                endif
+
+                assign thumbnail_url = media.preview_image | image_url: width: thumbnail_width, height: thumbnail_height
+                assign thumb_srcset = thumb_srcset | append: thumbnail_url | append: ' ' | append: thumbnail_width | append: 'w ' | append: thumbnail_height | append: 'h'
+                if forloop.last == false
+                  assign thumb_srcset = thumb_srcset | append: ', '
+                endif
+              endfor
+
+              assign default_thumbnail_width = 24
+              assign default_thumbnail_height = 24 | times: thumbnail_ratio | round
+
+              assign loading = 'lazy'
+              if current_slide >= 0
+                if forloop.index0 >= lower_loading_index and forloop.index0 <= upper_loading_index
+                  assign loading = 'eager'
+                endif
+              endif
+            -%}
+
+            <li class="thumbnail-list__item">
+              {%- capture thumbnail_alt -%}
+                {%- if media.media_type == 'video' or media.media_type == 'external_video' -%}
+                  {{ 'products.product.video_thumbnail_alt' | t: imageAlt: forloop.index }}
+                {%- elsif media.media_type == 'model' -%}
+                  {{ 'products.product.model_thumbnail_alt' | t: imageAlt: forloop.index }}
+                {%- else -%}
+                  {{ 'products.product.gallery_thumbnail_alt' | t: imageAlt: forloop.index }}
+                {%- endif -%}
+              {%- endcapture -%}
+
+              <button
+                type="button"
+                class="
+                  thumbnail
+                  {% if thumbnails_show_border %}thumbnail--border{% endif %}
+                "
+                aria-label="{{ thumbnail_alt }}"
+                data-slide-number="{{ forloop.index0 }}"
+              >
+                {%- if media.media_type == 'video' or media.media_type == 'external_video' -%}
+                  <div
+                    class="
+                      media-gallery__badge
+                      media-gallery__badge--video
+                    "
+                  >
+                    {%- render 'icons-theme', icon: 'play', additional_classes: 'icon--video-badge' -%}
+                  </div>
+                {%- endif -%}
+                {%- if media.media_type == 'model' -%}
+                  <div
+                    class="
+                      media-gallery__badge
+                      media-gallery__badge--model
+                    "
+                  >
+                    {%- render 'icons-theme', icon: '3d-model', additional_classes: 'icon--3d-badge' -%}
+                  </div>
+                {%- endif -%}
+                {%- liquid
+                  assign skeleton_alt = 'general.media.loading_thumbnail' | t: alt: forloop.index
+                -%}
+                {% render 'image-skeleton', alt: skeleton_alt, width: thumbnail_width, height: thumbnail_height %}
+                <img
+                  id="{{ section.id }}-slider-thumb-{{ forloop.index0 }}"
+                  src="{{ media.preview_image | image_url: width: default_thumbnail_width, height: default_thumbnail_height }}"
+                  srcset="{{ thumb_srcset }}"
+                  width="{{ default_thumbnail_width }}"
+                  height="{{ default_thumbnail_height }}"
+                  alt="{{ media.alt }}"
+                  class="media-gallery__thumb-image"
+                  data-media-id="{{ media.id }}"
+                  loading="{{ loading }}"
+                  sizes="{{ thumbnails_size }}px"
+                >
+              </button>
+            </li>
+          {%- endfor -%}
+        </ul>
+      </div>
+      <button
+        hidden
+        type="button"
+        class="
+          media-gallery__nav-item
+          media-gallery__nav-item--next
+          js-media-gallery-nav-next
+        "
+        aria-label="{{ 'layout.drawers.next_slide' | t }}"
+      >
+        {% render 'icons-theme', icon: 'chevron' %}
+      </button>
+    </media-gallery-navigation>
+  {%- endif -%}
+  {%- if section.settings.enable_zoom -%}
+    <template id="template-media-gallery-zoom-icon">
+      <span class="media-gallery__zoom-icon zoom-icon">
+        {% render 'icons-theme', icon: 'search', additional_classes: 'zoom-icon__search' %}
+        <span class="zoom-icon__plus icon"></span>
+      </span>
+    </template>
+  {%- endif -%}
+</media-gallery>
+<script src="{{ 'media-carousel.js' | asset_url }}" type="module"></script>
+<script src="{{ 'media-gallery.js' | asset_url }}" type="module"></script>

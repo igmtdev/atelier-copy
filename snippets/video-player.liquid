@@ -1,0 +1,114 @@
+{% comment %}
+  Render video player
+
+  Accepts:
+    - id: {String} Video player ID
+    - additional_classes: {String} Additional classes
+    - additional_attributes: {String} Additional attributes
+    - video_type: {String} Video type ('html5', 'youtube' or 'vimeo')
+    - video: {Object} Video object
+    - external_video_id: {String} External video id
+    - poster_image: {Object} Video poster image
+    - poster_image_loading: {String} Video poster image loading type (lazy or eager)
+    - poster_image_sizes: {String} Video poster image sizes
+    - poster_image_widths: {String} Video poster image widths
+    - aspect_ratio: {String} Video aspect ratio in the form of '16 / 9'
+    - button_color: {String} Button color (light, dark, primary)
+{% endcomment %}
+
+{%- liquid
+  if poster_image_loading == blank
+    assign poster_image_loading = 'lazy'
+  endif
+
+  if poster_image_widths == blank
+    assign poster_widths = '246, 493, 600, 713, 823, 990, 1100, 1206, 1346, 1426, 1646, 1946'
+  endif
+
+  assign poster_image_url = null
+  if poster_image == null or poster_image == blank
+    if video_type == 'youtube'
+      assign poster_image_url = 'https://img.youtube.com/vi/' | append: external_video_id | append: '/maxresdefault.jpg'
+    elsif video_type == 'html5'
+      assign poster_image = video.preview_image | image_url: width: 1946 | image_tag: loading: poster_image_loading, sizes: poster_image_sizes, widths: poster_widths
+    endif
+  else
+    if video_type == 'youtube' or video_type == 'vimeo'
+      assign poster_image_url = poster_image | image_url: width: 1946
+    endif
+    assign poster_image = poster_image | image_url: width: 1946 | image_tag: loading: poster_image_loading, sizes: poster_image_sizes, widths: poster_widths
+  endif
+
+  assign video_tag = 'video'
+  if external_video_id
+    assign video_tag = 'div'
+  endif
+
+  if video_type == 'html5'
+    for video_source in video.sources
+      if video_source.format == 'mov' or video_source.format == 'mp4'
+        assign video_url = video_source.url
+        break
+      endif
+    endfor
+  endif
+
+  if button_color == blank
+    assign button_color = 'primary'
+  endif
+-%}
+
+<link
+  rel="stylesheet"
+  href="{{ 'component-video-player.css' | asset_url }}"
+  media="print"
+  onload="this.media='all'"
+>
+<noscript>
+  {{ 'component-video-player.css' | asset_url | stylesheet_tag }}
+</noscript>
+<script src="{{ 'video-player.js' | asset_url }}" type="module"></script>
+<video-player
+  class="video-player--button-{{ button_color }} {{ additional_classes }}"
+  data-type="{{ video_type }}"
+  {% if poster_image_url %}
+    data-poster="{{ poster_image_url }}"
+  {% endif %}
+  {% if aspect_ratio %}
+    style="--aspect-ratio: {{ aspect_ratio }}"
+  {% endif %}
+  {% if additional_attributes %}
+    {{ additional_attributes }}
+  {% endif %}
+>
+  <video-element></video-element>
+  <video-poster
+    {% if video_type == 'vimeo' and poster_image == null %}
+      data-video-id="{{ external_video_id }}"
+    {% endif %}
+  >
+    {%- if poster_image -%}
+      {{ poster_image }}
+    {%- elsif poster_image_url -%}
+      {% comment %} theme-check-disable ImgWidthAndHeight, RemoteAsset {% endcomment %}
+      <img src="{{ poster_image_url }}" loading="lazy">
+      {% comment %} theme-check-enable ImgWidthAndHeight, RemoteAsset {% endcomment %}
+    {%- elsif video_type == 'youtube' -%}
+      {% comment %} theme-check-disable ImgWidthAndHeight, RemoteAsset {% endcomment %}
+      <img src="https://img.youtube.com/vi/{{ external_video_id }}/hqdefault.jpg" loading="lazy">
+      {% comment %} theme-check-enable ImgWidthAndHeight, RemoteAsset {% endcomment %}
+    {%- endif -%}
+  </video-poster>
+  {% render 'theme-spinner', tag: 'video-loading-indicator', hidden: true %}
+  <template>
+    <{{ video_tag }}
+      video-element
+      id="{{ id }}"
+      {% if video_type == 'html5' %}
+        src="{{ video_url }}"
+      {% else %}
+        data-{{- video_type -}}-id="{{ external_video_id }}"
+      {% endif %}
+    ></{{ video_tag }}>
+  </template>
+</video-player>

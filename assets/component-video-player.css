@@ -1,0 +1,87 @@
+video-player {
+  --aspect-ratio: 16 / 9;
+  display: block;
+  position: relative;
+}
+video-player .v-loading .v-bigPlay {
+  opacity: 0;
+  visibility: hidden;
+}
+video-player .v-vlite {
+  --vlite-colorPrimary: rgb(255, 255, 255);
+}
+video-player .v-vlite:not(.v-playing) .v-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--overlay-color, rgb(33, 33, 33));
+  opacity: var(--overlay-opacity, 0);
+  z-index: 2;
+  pointer-events: none;
+}
+video-player .v-vlite.v-video {
+  aspect-ratio: var(--aspect-ratio);
+  background-color: transparent;
+}
+video-player .v-vlite .v-bigPlay {
+  height: 60px;
+  width: 60px;
+  color: rgb(33, 33, 33);
+  background-color: rgb(255, 255, 255);
+  border-radius: 50%;
+  opacity: 1;
+  transition: transform 0.2s ease-in-out;
+}
+video-player .v-vlite .v-bigPlay:hover {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.05);
+  transition: transform 0.2s ease-in-out;
+}
+video-player .v-vlite .v-bigPlay .icon {
+  --size: 60px;
+}
+video-player .v-loader {
+  display: none;
+}
+video-player video-element {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+video-player video-element video {
+  width: 100%;
+}
+video-player.video-player--button-light .v-vlite .v-bigPlay {
+  color: rgb(33, 33, 33);
+  background-color: rgb(255, 255, 255);
+}
+video-player.video-player--button-dark .v-vlite .v-bigPlay {
+  color: rgb(255, 255, 255);
+  background-color: rgb(33, 33, 33);
+}
+video-player.video-player--button-primary .v-vlite .v-bigPlay {
+  color: rgb(255, 255, 255);
+  background-color: var(--color--brand);
+}
+
+video-poster {
+  display: block;
+  position: relative;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+  pointer-events: none;
+}
+.is-playing video-poster, video-poster.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+video-poster img {
+  width: 100%;
+}
+/*# sourceMappingURL=component-video-player.css.map */
